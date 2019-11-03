@@ -1,0 +1,6 @@
+.idea/
+ignored/
+dist/
+*.egg-info/
+*.pyc
+

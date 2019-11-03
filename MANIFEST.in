@@ -1,0 +1,6 @@
+recursive-include pinspect *.py
+include requirements*.txt
+include README.md
+include LICENSE
+recursive-exclude . *~
+
