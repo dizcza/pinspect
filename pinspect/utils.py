@@ -13,6 +13,9 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
+# does not match to any symbol
+REGEX_NEVER_MATCH = '(?!x)x'
+
 
 def collect_ignored_functions():
     ignore_functions = set()
