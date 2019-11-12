@@ -1,5 +1,4 @@
 import inspect
-import sys
 
 try:
     from StringIO import StringIO
@@ -27,16 +26,6 @@ def collect_ignored_functions():
 
 def get_module_root(obj):
     return obj.__class__.__module__.split('.')[0]
-
-
-class StdoutIgnore:
-    def __enter__(self):
-        self.stdout_saved = sys.stdout
-        sys.stdout = None
-        return self
-
-    def __exit__(self, *args):
-        sys.stdout = self.stdout_saved
 
 
 class IgnoreFunc:
