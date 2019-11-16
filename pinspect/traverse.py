@@ -2,11 +2,12 @@ import contextlib
 import inspect
 import re
 from collections import namedtuple
+from pprint import pformat
+import builtins
 
-import matplotlib.pyplot as plt
 import networkx as nx
 
-from pinspect.utils import get_module_root, IgnoreFunc, REGEX_NEVER_MATCH, NON_EXECUTABLE
+from pinspect.utils import get_module_root, IgnoreFunc, REGEX_NEVER_MATCH, NON_EXECUTABLE, to_pyvis, to_string
 
 Match = namedtuple("Match", ("attributes", "classes"))
 
@@ -16,11 +17,23 @@ class DiGraphAcyclic(nx.DiGraph):
         v_of_edge = id(v_obj)
         if v_of_edge not in self.nodes:
             level = self.nodes[u_of_edge]['level'] + 1
-            self.add_node(v_of_edge, label=v_obj.__class__.__name__, level=level)
+            self.add_node(v_obj, level=level)
         if nx.has_path(self, v_of_edge, u_of_edge):
             return False
         super().add_edge(u_of_edge, v_of_edge, **attr)
         return True
+
+    def add_node(self, obj, **attr):
+        label = obj.__class__.__name__
+        if isinstance(obj, (set, list, tuple, dict)):
+            label = f"{label} of size {len(obj)}"
+        title = pformat(obj, depth=1, compact=True)
+        title = title.splitlines()
+        title_short = title[0]
+        if len(title) > 1:
+            title_short = f"{title_short} ..., {title[-1]}"
+        title_short = title_short.strip('<>')
+        super().add_node(id(obj), label=label, title=title_short, **attr)
 
 
 class GraphBuilder:
@@ -32,18 +45,20 @@ class GraphBuilder:
         self.nonexec = re.compile(f"{NON_EXECUTABLE}|{ignore}")
         self.ignore_attribute = IgnoreFunc(ignore)
         self.tried_functions = set()
+        self.tried_classes = set()
         self.graph = DiGraphAcyclic()
 
     def traverse(self, obj, prefix='', level=0):
         if get_module_root(obj) != self.module:
             return Match([], [])
+        if obj.__class__ in self.tried_classes:
+            return Match([], [])
+        self.tried_classes.add(obj.__class__)
         found_attrs, found_class = [], []
         obj_class = obj.__class__.__name__
         if self.key.search(obj_class):
             found_class.append(f"{prefix} -> {obj_class}")
-        self.graph.add_node(id(obj), label=obj_class, level=level)
-        self.graph.nodes[id(obj)]['label'] = obj_class
-        self.graph.nodes[id(obj)]['level'] = level
+        self.graph.add_node(obj, level=level)
         for attr_name in dir(obj):
             if attr_name.startswith('__'):
                 continue
@@ -55,6 +70,10 @@ class GraphBuilder:
                 # if is_method:
                 #     attr_name = attr_name + str(inspect.signature(attr))
                 found_attrs.append(f"{prefix}.{attr_name}")
+            if isinstance(attr, (bool, int, str, float, type)):
+                if self.key.search(attr_name):
+                    self.graph.add_edge(id(obj), attr, label=attr_name)
+                continue
 
             full_name = f"{obj.__class__.__name__}.{attr_name}"
             if is_method and full_name not in self.tried_functions and not self.nonexec.search(attr_name):
@@ -71,13 +90,17 @@ class GraphBuilder:
                                                                  level=level+1)
                     found_attrs.extend(internal_attrs)
                     found_class.extend(internal_cls)
-            if isinstance(attr, (list, tuple)) and len(attr) > 0:
-                if not self.graph.add_edge(id(obj), attr[0], label=f"{attr_name}[0]"):
-                    continue
-                internal_attrs, internal_cls = self.traverse(attr[0], prefix=f"{prefix}.{attr_name}[0]",
-                                                             level=level+1)
-                found_attrs.extend(internal_attrs)
-                found_class.extend(internal_cls)
+            if isinstance(attr, (set, list, tuple)):
+                if len(attr) > 0:
+                    attr = next(iter(attr))
+                    if not self.graph.add_edge(id(obj), attr, label=f"{attr_name}[0]"):
+                        continue
+                    internal_attrs, internal_cls = self.traverse(attr, prefix=f"{prefix}.{attr_name}[0]",
+                                                                 level=level+1)
+                    found_attrs.extend(internal_attrs)
+                    found_class.extend(internal_cls)
+                else:
+                    self.graph.add_edge(id(obj), attr, label=attr_name)
             elif not is_method:
                 if not self.graph.add_edge(id(obj), attr, label=attr_name):
                     continue
@@ -104,27 +127,18 @@ class GraphBuilder:
         return graph_stripped
 
 
-def draw(graph):
-    # pos = nx.fruchterman_reingold_layout(graph)
-    pos = nx.planar_layout(graph)
-    # pos = nx.spiral_layout(graph)
-    node_labels = {node: label for node, label in graph.nodes.data('label') if label is not None}
-    nx.draw_networkx_labels(graph, pos, labels=node_labels, font_size=7)
-    edge_labels = {(u, v): label for (u, v, label) in graph.edges.data('label') if label is not None}
-    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=5)
-    nx.draw_networkx_edges(graph, pos)
-    nx.draw_networkx_nodes(graph, pos)
-    plt.show()
-
-
-def find(obj, key, verbose=True, ignore=''):
+def find(obj, key, verbose=True, ignore='', visualize=True):
     builder = GraphBuilder(key=key, module=get_module_root(obj), ignore=ignore)
     matches = builder.traverse(obj, prefix=obj.__class__.__name__)
+    graph = builder.strip()
     if verbose:
+        matches2 = to_string(graph, source=id(obj), prefix=obj.__class__.__name__)
+        print('\n'.join(matches2))
         if len(matches.attributes) > 0:
             print(">>> Methods and attributes", '\n'.join(matches.attributes), sep='\n')
         if len(matches.classes) > 0:
             print(">>> Object classes", '\n'.join(matches.classes), sep='\n')
-    graph = builder.strip()
-    draw(graph)
+    # if visualize:
+    #     network_pyvis = to_pyvis(graph)
+    #     network_pyvis.show(name=f"{obj.__class__.__name__}.html")
     return matches
