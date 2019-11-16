@@ -1,4 +1,5 @@
 import inspect
+import re
 
 try:
     from StringIO import StringIO
@@ -15,6 +16,8 @@ except ImportError:
 # does not match to any symbol
 REGEX_NEVER_MATCH = '(?!x)x'
 
+NON_EXECUTABLE = "save|write|remove|delete"
+
 
 def collect_ignored_functions():
     ignore_functions = set()
@@ -29,8 +32,10 @@ def get_module_root(obj):
 
 
 class IgnoreFunc:
-    def __init__(self):
+    def __init__(self, ignore=''):
+        self.ignore = re.compile(ignore, flags=re.IGNORECASE)
         self.ignored_functions = collect_ignored_functions()
 
     def __call__(self, obj, func_name):
-        return HAS_NUMPY and isinstance(obj, np.ndarray) and func_name in self.ignored_functions
+        is_numpy = HAS_NUMPY and isinstance(obj, np.ndarray) and func_name in self.ignored_functions
+        return self.ignore.search(func_name) or is_numpy
