@@ -3,7 +3,7 @@ import inspect
 import re
 from collections import namedtuple
 from pprint import pformat
-import builtins
+from tqdm import tqdm
 
 import networkx as nx
 
@@ -15,15 +15,16 @@ Match = namedtuple("Match", ("attributes", "classes"))
 class DiGraphAcyclic(nx.DiGraph):
     def add_edge(self, u_of_edge, v_obj, **attr):
         v_of_edge = id(v_obj)
-        if v_of_edge not in self.nodes:
-            level = self.nodes[u_of_edge]['level'] + 1
-            self.add_node(v_obj, level=level)
+        self.add_node(v_obj, level=self.nodes[u_of_edge]['level'] + 1)
         if nx.has_path(self, v_of_edge, u_of_edge):
+            # makes cycle
             return False
         super().add_edge(u_of_edge, v_of_edge, **attr)
         return True
 
     def add_node(self, obj, **attr):
+        if id(obj) in self.nodes:
+            return False
         label = obj.__class__.__name__
         if isinstance(obj, (set, list, tuple, dict)):
             label = f"{label} of size {len(obj)}"
@@ -34,6 +35,7 @@ class DiGraphAcyclic(nx.DiGraph):
             title_short = f"{title_short} ..., {title[-1]}"
         title_short = title_short.strip('<>')
         super().add_node(id(obj), label=label, title=title_short, **attr)
+        return True
 
 
 class GraphBuilder:
@@ -46,30 +48,41 @@ class GraphBuilder:
         self.ignore_attribute = IgnoreFunc(ignore)
         self.tried_functions = set()
         self.tried_classes = set()
+        self.max_depth = 10
         self.graph = DiGraphAcyclic()
 
-    def traverse(self, obj, prefix='', level=0):
-        if get_module_root(obj) != self.module:
-            return Match([], [])
-        if obj.__class__ in self.tried_classes:
-            return Match([], [])
-        self.tried_classes.add(obj.__class__)
-        found_attrs, found_class = [], []
-        obj_class = obj.__class__.__name__
-        if self.key.search(obj_class):
-            found_class.append(f"{prefix} -> {obj_class}")
-        self.graph.add_node(obj, level=level)
-        for attr_name in dir(obj):
+    def traverse(self, obj, level=0):
+        if level >= self.max_depth:
+            return
+        if not isinstance(obj, (list, tuple, set, dict)):
+            # don't skip builtins like list, tuple, set, dict
+            if get_module_root(obj) != self.module or obj.__class__ in self.tried_classes:
+                return
+            self.tried_classes.add(obj.__class__)
+        if not self.graph.add_node(obj, level=level):
+            # already added
+            pass
+            # return
+        #
+        # if isinstance(obj, dict):
+        #     for key, value in obj.items():
+        #         if not self.graph.add_edge(id(obj), value, label=f"['{key}']"):
+        #             continue
+        #         self.traverse(value, level=level + 1)
+        #     return
+        # if isinstance(obj, (set, list, tuple)):
+
+        for attr_name in tqdm(dir(obj), desc=f"Inspecting '{obj.__class__.__name__}'",
+                              disable=level > 0):
             if attr_name.startswith('__'):
                 continue
             if self.ignore_attribute(obj, attr_name):
                 continue
-            attr = getattr(obj, attr_name)
-            is_method = inspect.ismethod(attr)
-            if self.key.search(attr_name):
-                # if is_method:
-                #     attr_name = attr_name + str(inspect.signature(attr))
-                found_attrs.append(f"{prefix}.{attr_name}")
+            try:
+                attr = getattr(obj, attr_name)
+            except ValueError:
+                continue
+            is_method = callable(attr)
             if isinstance(attr, (bool, int, str, float, type)):
                 if self.key.search(attr_name):
                     self.graph.add_edge(id(obj), attr, label=attr_name)
@@ -86,29 +99,19 @@ class GraphBuilder:
                     self.tried_functions.add(full_name)
                     if not self.graph.add_edge(id(obj), res, label=f"{attr_name}()"):
                         continue
-                    internal_attrs, internal_cls = self.traverse(res, prefix=f"{prefix}.{attr_name}()",
-                                                                 level=level+1)
-                    found_attrs.extend(internal_attrs)
-                    found_class.extend(internal_cls)
+                    self.traverse(res, level=level + 1)
             if isinstance(attr, (set, list, tuple)):
                 if len(attr) > 0:
                     attr = next(iter(attr))
                     if not self.graph.add_edge(id(obj), attr, label=f"{attr_name}[0]"):
                         continue
-                    internal_attrs, internal_cls = self.traverse(attr, prefix=f"{prefix}.{attr_name}[0]",
-                                                                 level=level+1)
-                    found_attrs.extend(internal_attrs)
-                    found_class.extend(internal_cls)
+                    self.traverse(attr, level=level + 1)
                 else:
                     self.graph.add_edge(id(obj), attr, label=attr_name)
             elif not is_method:
                 if not self.graph.add_edge(id(obj), attr, label=attr_name):
                     continue
-                internal_attrs, internal_cls = self.traverse(attr, prefix=f"{prefix}.{attr_name}",
-                                                             level=level+1)
-                found_attrs.extend(internal_attrs)
-                found_class.extend(internal_cls)
-        return Match(found_attrs, found_class)
+                self.traverse(attr, level=level + 1)
 
     def strip(self):
         graph = self.graph.reverse(copy=False)
@@ -129,16 +132,12 @@ class GraphBuilder:
 
 def find(obj, key, verbose=True, ignore='', visualize=True):
     builder = GraphBuilder(key=key, module=get_module_root(obj), ignore=ignore)
-    matches = builder.traverse(obj, prefix=obj.__class__.__name__)
+    builder.traverse(obj)
     graph = builder.strip()
     if verbose:
-        matches2 = to_string(graph, source=id(obj), prefix=obj.__class__.__name__)
-        print('\n'.join(matches2))
-        if len(matches.attributes) > 0:
-            print(">>> Methods and attributes", '\n'.join(matches.attributes), sep='\n')
-        if len(matches.classes) > 0:
-            print(">>> Object classes", '\n'.join(matches.classes), sep='\n')
-    # if visualize:
-    #     network_pyvis = to_pyvis(graph)
-    #     network_pyvis.show(name=f"{obj.__class__.__name__}.html")
-    return matches
+        matches = to_string(graph, source=id(obj), prefix=obj.__class__.__name__)
+        print('\n'.join(matches))
+    if visualize:
+        network_pyvis = to_pyvis(graph)
+        network_pyvis.show(name=f"{obj.__class__.__name__}.html")
+    return graph
