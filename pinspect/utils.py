@@ -16,9 +16,21 @@ REGEX_NEVER_MATCH = '(?!x)x'
 NON_EXECUTABLE = "save|write|remove|delete|duplicate"
 
 
-def collect_ignored_functions(obj_class):
-    function_names = {func_name for func_name, func in inspect.getmembers(obj_class)}
-    return function_names
+def getmembers(obj_class):
+    """
+    Parameters
+    ----------
+    obj_class : type
+        An object class.
+
+    Returns
+    -------
+    member_names : set
+        A set of method and attribute names of the `obj_class` type.
+
+    """
+    member_names = {func_name for func_name, func in inspect.getmembers(obj_class)}
+    return member_names
 
 
 def get_module_root(obj):
@@ -26,23 +38,33 @@ def get_module_root(obj):
 
 
 class IgnoreFunc:
-    def __init__(self, key='', obj_class=()):
-        if key == '':
-            key = REGEX_NEVER_MATCH
+    def __init__(self, key, obj_class=()):
+        """
+        Parameters
+        ----------
+        key : str or list, optional
+            A string or a list of strings to ignore `obj` attributes and methods from being accessed and executed.
+            Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:
+            'save', 'write', 'remove', 'delete', 'duplicate'
+            For the total list of ignored key-words, see `NON_EXECUTABLE` in `utils.py`.
+        obj_class : list, optional
+            A list of class types to ignore.
+            Apart from user-provided class types, all numpy functions will not be executed.
+        """
         self.ignore = re.compile(key, flags=re.IGNORECASE)
         self.ignored_functions = dict()
         try:
             import numpy as np
-            self.ignored_functions[np.ndarray] = collect_ignored_functions(np.ndarray)
-            self.ignored_functions[np.ndarray].update(collect_ignored_functions(np))
+            self.ignored_functions[np.ndarray] = getmembers(np.ndarray)
+            self.ignored_functions[np.ndarray].update(getmembers(np))
         except ImportError:
             pass
         if not isinstance(obj_class, (list, tuple, set)):
             obj_class = [obj_class]
         for class_type in obj_class:
-            self.ignored_functions[class_type] = collect_ignored_functions(class_type)
+            self.ignored_functions[class_type] = getmembers(class_type)
 
-    def __call__(self, obj, func_name):
+    def __call__(self, obj, attribute_name):
         """
         Check the `obj` for the attribute name `func_name`.
 
@@ -50,17 +72,17 @@ class IgnoreFunc:
         ----------
         obj : object
             Object to take the attribute from.
-        func_name : str
-            `obj`'s attribute name.
+        attribute_name : str
+            `obj` attribute name.
         Returns
         -------
         bool
             Whether this attribute should be ignored or not.
         """
         for ignored_class, ignored_functions in self.ignored_functions.items():
-            if isinstance(obj, ignored_class) and func_name in ignored_functions:
+            if isinstance(obj, ignored_class) and attribute_name in ignored_functions:
                 return True
-        return self.ignore.search(func_name)
+        return self.ignore.search(attribute_name)
 
 
 def to_pyvis(graph, layout=True):
@@ -122,6 +144,20 @@ def to_string(graph, source, prefix=''):
 
 
 def check_edge(graph, edge_label):
+    """
+    Parameters
+    ----------
+    graph : nx.DiGraph
+        A graph.
+    edge_label : str
+        Edge label.
+
+    Returns
+    -------
+    int
+        Counts how many edges have the property `label` that matches `edge_label`.
+
+    """
     filtered = [triple for triple in graph.edges.data('label') if triple[2].startswith(edge_label)]
     for v, u, label in filtered:
         logging.info(f"{graph.nodes[v]['label']}.{label} -> {graph.nodes[u]['label']}")

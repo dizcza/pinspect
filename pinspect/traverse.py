@@ -16,22 +16,66 @@ init_logger()
 
 
 class DiGraphAcyclic(nx.DiGraph):
-    def add_edge(self, u_of_edge, v_obj, label=None, **attr):
-        v_of_edge = self.add_node(v_obj, level=self.nodes[u_of_edge]['level'] + 1)
-        if nx.has_path(self, v_of_edge, u_of_edge):
+    """
+    Directed Acyclic Graph.
+    """
+
+    def add_edge(self, u, v_obj, label=None, **attr):
+        """
+        Adds `id(v_obj)` node in the graph, if not present, and then
+        adds an edge from `u` to `id(v_obj)`.
+
+        Parameters
+        ----------
+        u : int or str
+            A node from.
+        v_obj : object
+            A node object to.
+            The node of the object is `id(v_obj)`.
+        label : str
+            Edge label.
+
+        Returns
+        -------
+        bool
+            If the edge has been successfully added or not.
+            If adding the edge from `u` to `v_obj` closes a cycle, returns False.
+            Otherwise, returns True.
+        """
+        v_of_edge = self.add_node(v_obj, level=self.nodes[u]['level'] + 1)
+        if nx.has_path(self, v_of_edge, u):
             # makes cycle
             return False
         if label.endswith('()'):
             color = 'red'
-        elif self.nodes[v_of_edge]['level'] < self.nodes[u_of_edge]['level']:
+        elif self.nodes[v_of_edge]['level'] < self.nodes[u]['level']:
             # level up
             color = 'magenta'
         else:
             color = None
-        super().add_edge(u_of_edge, v_of_edge, label=label, color=color, **attr)
+        super().add_edge(u, v_of_edge, label=label, color=color, **attr)
         return True
 
     def add_node(self, obj, **attr):
+        """
+        Adds `obj` in the graph, if not present.
+
+        Parameters
+        ----------
+        obj : object
+            An object to add in the graph.
+
+        Returns
+        -------
+        obj_id : int
+            Node id.
+
+        Notes
+        -----
+        Due to the fact that two objects with non-overlapping lifetime might have the same identifier
+        (address in memory), adding a node might overwrite the node with the same ID.
+
+        """
         if isinstance(obj, Exception):
             obj_id = uuid.uuid4().hex
             color = 'red'
@@ -54,7 +98,31 @@ class DiGraphAcyclic(nx.DiGraph):
 
 
 class GraphBuilder:
-    def __init__(self, obj, key, ignore_key='', ignore_class=()):
+    def __init__(self, obj, key, ignore_key='', ignore_class=(), max_depth=10):
+        """
+        Parameters
+        ----------
+        obj : object
+            An object to inspect for `key`.
+        key : str
+            A key to look for.
+        ignore_key : str or list, optional
+            A string or a list of strings to ignore `obj` attributes and methods from being accessed and executed.
+            Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:
+                'save', 'write', 'remove', 'delete', 'duplicate'
+            For the total list of ignored key-words, see `NON_EXECUTABLE` in `utils.py`.
+        ignore_class : list, optional
+            A list of class types to ignore.
+            Apart from user-provided class types, all numpy functions will not be executed.
+        max_depth : int, optional
+            The max recursion depth.
+            Default is 10.
+
+        Raises
+        ------
+        ValueError
+            If the `key` is a part of `ignore_key`.
+        """
         if key == '':
             key = REGEX_NEVER_MATCH
         self.obj = obj
@@ -62,14 +130,15 @@ class GraphBuilder:
         self.key = re.compile(key, flags=re.IGNORECASE)
         self.graph = DiGraphAcyclic()
         self.module = get_module_root(obj)
-        nonexec = NON_EXECUTABLE
-        if ignore_key:
-            nonexec = f"{nonexec}|{ignore_key}"
-        self.nonexec = re.compile(nonexec)
+        if not isinstance(ignore_key, str):
+            ignore_key = '|'.join(ignore_key)
+        ignore_key = f"{NON_EXECUTABLE}|{ignore_key}".rstrip('|')
+        if re.search(ignore_key, key):
+            raise ValueError(f"The key='{key}' cannot be a part of ignore_key='{ignore_key}'")
         self.ignore_attribute = IgnoreFunc(key=ignore_key, obj_class=ignore_class)
         self.tried_functions = set()
         self.tried_classes = set()
-        self.max_depth = 10
+        self.max_depth = max_depth
 
         self.graph.add_node(obj, level=0)
 
@@ -123,7 +192,8 @@ class GraphBuilder:
             except ValueError:
                 continue
             full_name = f"{obj.__class__.__name__}.{attr_name}"
-            if callable(attr) and full_name not in self.tried_functions and not self.nonexec.search(attr_name):
+            if callable(attr) and full_name not in self.tried_functions:
+                self.tried_functions.add(full_name)
                 try:
                     logging.debug(f"{'  ' * (level + 1)}Executing {obj.__class__.__name__}.{attr_name}()")
                     with contextlib.redirect_stdout(None):
@@ -134,7 +204,6 @@ class GraphBuilder:
                     self.graph.add_edge(id(obj), err, label=f"{attr_name}()")
                 else:
                     self.obj_saved.append(res)
-                    self.tried_functions.add(full_name)
                     self.traverse(res, parent_edge=(obj, f"{attr_name}()"), level=level + 1)
             elif not inspect.ismethod(attr):
                 self.traverse(attr, parent_edge=(obj, attr_name), level=level + 1)
@@ -160,6 +229,37 @@ class GraphBuilder:
 
 
 def find(obj, key, ignore_key='', ignore_class=(), verbose=True, visualize=True):
+    """
+    Parameters
+    ----------
+    obj : object
+        An object to inspect for `key`.
+    key : str
+        A key to look for.
+    ignore_key : str or list, optional
+        A string or a list of strings to ignore `obj` attributes and methods from being accessed and executed.
+        Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:
+            'save', 'write', 'remove', 'delete', 'duplicate'
+        For the total list of ignored key-words, see `NON_EXECUTABLE` in `utils.py`.
+    ignore_class : list, optional
+        A list of class types to ignore.
+        Apart from user-provided class types, all numpy functions will not be executed.
+    verbose : bool, optional
+        If set to True, prints found matches in console.
+        Default is True.
+    visualize : bool, optional
+        If set to True, renders a graph in a web browser, using `pyvis` package.
+
+    Returns
+    -------
+    graph : nx.DiGraph
+        Stripped graph with edges and nodes that match the `key`.
+
+    Raises
+    ------
+    ValueError
+        If the `key` is a part of `ignore_key`.
+    """
     builder = GraphBuilder(obj, key=key, ignore_key=ignore_key, ignore_class=ignore_class)
     builder.traverse(obj)
     builder.obj_saved.clear()

@@ -54,3 +54,7 @@ Below is the full unfiltered graph of `neo.BlackRockIO` of all possible method a
 
 1. Python 3.6+
 2. [requirements.txt](requirements.txt)
+
+### Alternative
+
+Another package to inspect python variables is [objbrowser](https://github.com/titusjan/objbrowser).
