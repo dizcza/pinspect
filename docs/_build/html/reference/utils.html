@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>utils - Utility functions &#8212; Pretty inspect 0.0.2 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="traverse - Object traversal" href="traverse.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="module-pinspect.utils">
+<span id="utils-utility-functions"></span><h1><cite>utils</cite> -  Utility functions<a class="headerlink" href="#module-pinspect.utils" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="pinspect.utils.getmembers">
+<code class="sig-prename descclassname">pinspect.utils.</code><code class="sig-name descname">getmembers</code><span class="sig-paren">(</span><em class="sig-param">obj_class</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/utils.html#getmembers"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.utils.getmembers" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>obj_class</strong><span class="classifier">type</span></dt><dd><p>An object class.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>member_names</strong><span class="classifier">set</span></dt><dd><p>A set of method and attribute names of the <cite>obj_class</cite> type.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pinspect.utils.get_module_root">
+<code class="sig-prename descclassname">pinspect.utils.</code><code class="sig-name descname">get_module_root</code><span class="sig-paren">(</span><em class="sig-param">obj</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/utils.html#get_module_root"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.utils.get_module_root" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="class">
+<dt id="pinspect.utils.IgnoreFunc">
+<em class="property">class </em><code class="sig-prename descclassname">pinspect.utils.</code><code class="sig-name descname">IgnoreFunc</code><span class="sig-paren">(</span><em class="sig-param">key</em>, <em class="sig-param">obj_class=()</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/utils.html#IgnoreFunc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.utils.IgnoreFunc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pinspect.utils.to_pyvis">
+<code class="sig-prename descclassname">pinspect.utils.</code><code class="sig-name descname">to_pyvis</code><span class="sig-paren">(</span><em class="sig-param">graph</em>, <em class="sig-param">layout=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/utils.html#to_pyvis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.utils.to_pyvis" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method takes an exisitng Networkx graph and translates
+it to a PyVis graph format that can be accepted by the VisJs
+API in the Jinja2 template.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>graph</strong><span class="classifier">nx.DiGraph</span></dt><dd><p>NetworkX directed graph.</p>
+</dd>
+<dt><strong>layout</strong><span class="classifier">bool</span></dt><dd><p>Use hierarchical layout if this is set.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>net</strong><span class="classifier">Network</span></dt><dd><p>PyVis Network</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pinspect.utils.to_string">
+<code class="sig-prename descclassname">pinspect.utils.</code><code class="sig-name descname">to_string</code><span class="sig-paren">(</span><em class="sig-param">graph</em>, <em class="sig-param">source</em>, <em class="sig-param">prefix=''</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/utils.html#to_string"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.utils.to_string" title="Permalink to this definition">¶</a></dt>
+<dd><p>Traverse the graph and yield its string representation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>graph</strong><span class="classifier">nx.DiGraph</span></dt><dd><p>Graph, obtained by <cite>GraphBuilder</cite>.</p>
+</dd>
+<dt><strong>source</strong><span class="classifier">int</span></dt><dd><p>Source node id.</p>
+</dd>
+<dt><strong>prefix</strong><span class="classifier">str</span></dt><dd><p>This prefix will be accumulated in a full call history during successive calls of <cite>to_string()</cite>.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt>generator</dt><dd><p>Generator of string traversal of the graph.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pinspect.utils.check_edge">
+<code class="sig-prename descclassname">pinspect.utils.</code><code class="sig-name descname">check_edge</code><span class="sig-paren">(</span><em class="sig-param">graph</em>, <em class="sig-param">edge_label</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/utils.html#check_edge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.utils.check_edge" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>graph</strong><span class="classifier">nx.DiGraph</span></dt><dd><p>A graph.</p>
+</dd>
+<dt><strong>edge_label</strong><span class="classifier">str</span></dt><dd><p>Edge label.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt>int</dt><dd><p>Counts how many edges have the property <cite>label</cite> that matches <cite>edge_label</cite>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Pretty inspect</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Modules</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="traverse.html"><cite>traverse</cite> -  Object traversal</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#"><cite>utils</cite> -  Utility functions</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../modules.html">Modules</a><ul>
+      <li>Previous: <a href="traverse.html" title="previous chapter"><cite>traverse</cite> -  Object traversal</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Danylo Ulianych.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/reference/utils.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

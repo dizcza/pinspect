@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>traverse - Object traversal &#8212; Pretty inspect 0.0.2 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="utils - Utility functions" href="utils.html" />
+    <link rel="prev" title="Modules" href="../modules.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="module-pinspect.traverse">
+<span id="traverse-object-traversal"></span><h1><cite>traverse</cite> -  Object traversal<a class="headerlink" href="#module-pinspect.traverse" title="Permalink to this headline">¶</a></h1>
+<p>The main function is <cite>find()</cite>.</p>
+<dl class="class">
+<dt id="pinspect.traverse.DiGraphAcyclic">
+<em class="property">class </em><code class="sig-prename descclassname">pinspect.traverse.</code><code class="sig-name descname">DiGraphAcyclic</code><span class="sig-paren">(</span><em class="sig-param">incoming_graph_data=None</em>, <em class="sig-param">**attr</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#DiGraphAcyclic"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.DiGraphAcyclic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">networkx.classes.digraph.DiGraph</span></code></p>
+<p>Directed Acyclic Graph.</p>
+<dl class="method">
+<dt id="pinspect.traverse.DiGraphAcyclic.add_edge">
+<code class="sig-name descname">add_edge</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">u</em>, <em class="sig-param">v_obj</em>, <em class="sig-param">label=None</em>, <em class="sig-param">**attr</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#DiGraphAcyclic.add_edge"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.DiGraphAcyclic.add_edge" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds <cite>id(v_obj)</cite> node in the graph, if not present, and then
+adds an edge from <cite>u</cite> to <cite>id(v_obj)</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>u</strong><span class="classifier">int or str</span></dt><dd><p>A node from.</p>
+</dd>
+<dt><strong>v_obj</strong><span class="classifier">object</span></dt><dd><p>A node object to.
+The node of the object is <cite>id(v_obj)</cite>.</p>
+</dd>
+<dt><strong>label</strong><span class="classifier">str</span></dt><dd><p>Edge label.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt>bool</dt><dd><p>If the edge has been successfully added or not.
+If adding the edge from <cite>u</cite> to <cite>v_obj</cite> closes a cycle, returns False.
+Otherwise, returns True.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="pinspect.traverse.DiGraphAcyclic.add_node">
+<code class="sig-name descname">add_node</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">obj</em>, <em class="sig-param">**attr</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#DiGraphAcyclic.add_node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.DiGraphAcyclic.add_node" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds <cite>obj</cite> in the graph, if not present.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>obj</strong><span class="classifier">object</span></dt><dd><p>An object to add in the graph.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>obj_id</strong><span class="classifier">int</span></dt><dd><p>Node id.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Due to the fact that two objects with non-overlapping lifetime might have the same identifier
+(address in memory), adding a node might overwrite the node with the same ID.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pinspect.traverse.GraphBuilder">
+<em class="property">class </em><code class="sig-prename descclassname">pinspect.traverse.</code><code class="sig-name descname">GraphBuilder</code><span class="sig-paren">(</span><em class="sig-param">obj</em>, <em class="sig-param">key</em>, <em class="sig-param">ignore_key=''</em>, <em class="sig-param">ignore_class=()</em>, <em class="sig-param">max_depth=10</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#GraphBuilder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.GraphBuilder" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="pinspect.traverse.GraphBuilder.traverse">
+<code class="sig-name descname">traverse</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">obj</em>, <em class="sig-param">parent_edge=None</em>, <em class="sig-param">level=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#GraphBuilder.traverse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.GraphBuilder.traverse" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="pinspect.traverse.GraphBuilder.strip">
+<code class="sig-name descname">strip</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">with_methods=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#GraphBuilder.strip"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.GraphBuilder.strip" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="pinspect.traverse.find">
+<code class="sig-prename descclassname">pinspect.traverse.</code><code class="sig-name descname">find</code><span class="sig-paren">(</span><em class="sig-param">obj</em>, <em class="sig-param">key</em>, <em class="sig-param">ignore_key=''</em>, <em class="sig-param">ignore_class=()</em>, <em class="sig-param">verbose=True</em>, <em class="sig-param">visualize=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pinspect/traverse.html#find"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pinspect.traverse.find" title="Permalink to this definition">¶</a></dt>
+<dd><p>Traverse the object <cite>obj</cite> and find methods and attributes that match the <cite>key</cite>.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>obj</strong><span class="classifier">object</span></dt><dd><p>An object to inspect for <cite>key</cite>.</p>
+</dd>
+<dt><strong>key</strong><span class="classifier">str</span></dt><dd><p>A key to look for.</p>
+</dd>
+<dt><strong>ignore_key</strong><span class="classifier">str or list, optional</span></dt><dd><p>A string or a list of strings to ignore <cite>obj</cite> attributes and methods from being accessed and executed.
+Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:</p>
+<blockquote>
+<div><p>‘save’, ‘write’, ‘remove’, ‘delete’, ‘duplicate’</p>
+</div></blockquote>
+<p>For the total list of ignored key-words, see <cite>NON_EXECUTABLE</cite> in <cite>utils.py</cite>.</p>
+</dd>
+<dt><strong>ignore_class</strong><span class="classifier">list, optional</span></dt><dd><p>A list of class types to ignore.
+Apart from user-provided class types, all numpy functions will not be executed.</p>
+</dd>
+<dt><strong>verbose</strong><span class="classifier">bool, optional</span></dt><dd><p>If set to True, prints found matches in console.
+Default is True.</p>
+</dd>
+<dt><strong>visualize</strong><span class="classifier">bool, optional</span></dt><dd><p>If set to True, renders a graph in a web browser, using <cite>pyvis</cite> package.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>graph</strong><span class="classifier">nx.DiGraph</span></dt><dd><p>Stripped graph with edges and nodes that match the <cite>key</cite>.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises</dt>
+<dd class="field-odd"><dl class="simple">
+<dt>ValueError</dt><dd><p>If the <cite>key</cite> is a part of <cite>ignore_key</cite>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Pretty inspect</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Modules</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#"><cite>traverse</cite> -  Object traversal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html"><cite>utils</cite> -  Utility functions</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../modules.html">Modules</a><ul>
+      <li>Previous: <a href="../modules.html" title="previous chapter">Modules</a></li>
+      <li>Next: <a href="utils.html" title="next chapter"><cite>utils</cite> -  Utility functions</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Danylo Ulianych.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/reference/traverse.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

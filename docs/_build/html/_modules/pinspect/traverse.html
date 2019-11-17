@@ -1,0 +1,386 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>pinspect.traverse &#8212; Pretty inspect 0.0.2 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pinspect.traverse</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">The main function is `find()`.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+<span class="kn">from</span> <span class="nn">pprint</span> <span class="k">import</span> <span class="n">pformat</span>
+
+<span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
+
+<span class="kn">from</span> <span class="nn">pinspect.logger</span> <span class="k">import</span> <span class="n">init_logger</span>
+<span class="kn">from</span> <span class="nn">pinspect.utils</span> <span class="k">import</span> <span class="n">get_module_root</span><span class="p">,</span> <span class="n">IgnoreFunc</span><span class="p">,</span> <span class="n">REGEX_NEVER_MATCH</span><span class="p">,</span> <span class="n">NON_EXECUTABLE</span><span class="p">,</span> <span class="n">to_pyvis</span><span class="p">,</span> <span class="n">to_string</span><span class="p">,</span> \
+    <span class="n">check_edge</span>
+
+<span class="n">init_logger</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="DiGraphAcyclic"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.DiGraphAcyclic">[docs]</a><span class="k">class</span> <span class="nc">DiGraphAcyclic</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Directed Acyclic Graph.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DiGraphAcyclic.add_edge"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.DiGraphAcyclic.add_edge">[docs]</a>    <span class="k">def</span> <span class="nf">add_edge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v_obj</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">attr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adds `id(v_obj)` node in the graph, if not present, and then</span>
+<span class="sd">        adds an edge from `u` to `id(v_obj)`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        u : int or str</span>
+<span class="sd">            A node from.</span>
+<span class="sd">        v_obj : object</span>
+<span class="sd">            A node object to.</span>
+<span class="sd">            The node of the object is `id(v_obj)`.</span>
+<span class="sd">        label : str</span>
+<span class="sd">            Edge label.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            If the edge has been successfully added or not.</span>
+<span class="sd">            If adding the edge from `u` to `v_obj` closes a cycle, returns False.</span>
+<span class="sd">            Otherwise, returns True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">v_of_edge</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">v_obj</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">u</span><span class="p">][</span><span class="s1">&#39;level&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">nx</span><span class="o">.</span><span class="n">has_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v_of_edge</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+            <span class="c1"># makes cycle</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">label</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;()&#39;</span><span class="p">):</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;red&#39;</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">v_of_edge</span><span class="p">][</span><span class="s1">&#39;level&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">u</span><span class="p">][</span><span class="s1">&#39;level&#39;</span><span class="p">]:</span>
+            <span class="c1"># level up</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;magenta&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v_of_edge</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="o">**</span><span class="n">attr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="DiGraphAcyclic.add_node"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.DiGraphAcyclic.add_node">[docs]</a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="o">**</span><span class="n">attr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adds `obj` in the graph, if not present.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        obj : object</span>
+<span class="sd">            An object to add in the graph.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        obj_id : int</span>
+<span class="sd">            Node id.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Due to the fact that two objects with non-overlapping lifetime might have the same identifier</span>
+<span class="sd">        (address in memory), adding a node might overwrite the node with the same ID.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+            <span class="n">obj_id</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;red&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">obj_id</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">obj_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">obj_id</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="nb">set</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{label}</span><span class="s2"> of size {len(obj)}&quot;</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="n">pformat</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="n">title</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span>
+        <span class="n">title_short</span> <span class="o">=</span> <span class="n">title</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">title_short</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{title_short}</span><span class="s2"> ..., </span><span class="si">{title[-1]}</span><span class="s2">&quot;</span>
+        <span class="n">title_short</span> <span class="o">=</span> <span class="n">title_short</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;&lt;&gt;&#39;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">obj_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="n">title_short</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="o">**</span><span class="n">attr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj_id</span></div></div>
+
+
+<div class="viewcode-block" id="GraphBuilder"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.GraphBuilder">[docs]</a><span class="k">class</span> <span class="nc">GraphBuilder</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">ignore_key</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">ignore_class</span><span class="o">=</span><span class="p">(),</span> <span class="n">max_depth</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        obj : object</span>
+<span class="sd">            An object to inspect for `key`.</span>
+<span class="sd">        key : str</span>
+<span class="sd">            A key to look for.</span>
+<span class="sd">        ignore_key : str or list, optional</span>
+<span class="sd">            A string or a list of strings to ignore `obj` attributes and methods from being accessed and executed.</span>
+<span class="sd">            Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:</span>
+<span class="sd">                &#39;save&#39;, &#39;write&#39;, &#39;remove&#39;, &#39;delete&#39;, &#39;duplicate&#39;</span>
+<span class="sd">            For the total list of ignored key-words, see `NON_EXECUTABLE` in `utils.py`.</span>
+<span class="sd">        ignore_class : list, optional</span>
+<span class="sd">            A list of class types to ignore.</span>
+<span class="sd">            Apart from user-provided class types, all numpy functions will not be executed.</span>
+<span class="sd">        max_depth : int, optional</span>
+<span class="sd">            The max recursion depth.</span>
+<span class="sd">            Default is 10.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the `key` is a part of `ignore_key`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">REGEX_NEVER_MATCH</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obj_saved</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># prevent being collected by GC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">DiGraphAcyclic</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">get_module_root</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ignore_key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">ignore_key</span> <span class="o">=</span> <span class="s1">&#39;|&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ignore_key</span><span class="p">)</span>
+        <span class="n">ignore_key</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{NON_EXECUTABLE}</span><span class="s2">|</span><span class="si">{ignore_key}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">ignore_key</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;The key=&#39;</span><span class="si">{key}</span><span class="s2">&#39; cannot be a part of ignore_key=&#39;</span><span class="si">{ignore_key}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignore_attribute</span> <span class="o">=</span> <span class="n">IgnoreFunc</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">ignore_key</span><span class="p">,</span> <span class="n">obj_class</span><span class="o">=</span><span class="n">ignore_class</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tried_functions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tried_classes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_depth</span> <span class="o">=</span> <span class="n">max_depth</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GraphBuilder.traverse"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.GraphBuilder.traverse">[docs]</a>    <span class="k">def</span> <span class="nf">traverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">parent_edge</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">level</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_depth</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">parent_edge</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">parent</span><span class="p">,</span> <span class="n">edge_name</span> <span class="o">=</span> <span class="n">parent_edge</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">parent</span><span class="p">),</span> <span class="n">obj</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">edge_name</span><span class="p">):</span>
+                <span class="c1"># makes a cycle</span>
+                <span class="k">return</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">type</span><span class="p">)):</span>
+                <span class="c1"># ignore builtin types</span>
+                <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">traverse</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">parent_edge</span><span class="o">=</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">f</span><span class="s2">&quot;[&#39;</span><span class="si">{key}</span><span class="s2">&#39;]&quot;</span><span class="p">),</span> <span class="n">level</span><span class="o">=</span><span class="n">level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="nb">set</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">element</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">parent_edge</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">parent</span><span class="p">,</span> <span class="n">edge_name</span> <span class="o">=</span> <span class="n">parent_edge</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">traverse</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">parent_edge</span><span class="o">=</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{edge_name}</span><span class="s2">[0]&quot;</span><span class="p">),</span> <span class="n">level</span><span class="o">=</span><span class="n">level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">traverse</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">parent_edge</span><span class="o">=</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s2">&quot;[0]&quot;</span><span class="p">),</span> <span class="n">level</span><span class="o">=</span><span class="n">level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">get_module_root</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="p">:</span>
+            <span class="c1"># we&#39;re interested only in functions of the given module</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tried_classes</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tried_classes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;{&#39;  &#39; * level}Inspecting </span><span class="si">{obj.__class__.__name__}</span><span class="s2"> (level=</span><span class="si">{level}</span><span class="s2">): </span><span class="si">{obj}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">attr_name</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">dir</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;Inspecting &#39;</span><span class="si">{obj.__class__.__name__}</span><span class="s2">&#39;&quot;</span><span class="p">,</span>
+                              <span class="n">disable</span><span class="o">=</span><span class="n">level</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">attr_name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;__&#39;</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_attribute</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">full_name</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{obj.__class__.__name__}</span><span class="s2">.</span><span class="si">{attr_name}</span><span class="s2">&quot;</span>
+            <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">attr</span><span class="p">)</span> <span class="ow">and</span> <span class="n">full_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tried_functions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">tried_functions</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">full_name</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;{&#39;  &#39; * (level + 1)}Executing </span><span class="si">{obj.__class__.__name__}</span><span class="s2">.</span><span class="si">{attr_name}</span><span class="s2">()&quot;</span><span class="p">)</span>
+                    <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">redirect_stdout</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                        <span class="n">res</span> <span class="o">=</span> <span class="n">attr</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                    <span class="c1"># create a new exception to make sure the id is unique</span>
+                    <span class="n">err</span> <span class="o">=</span> <span class="n">err</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="n">err</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;</span><span class="si">{attr_name}</span><span class="s2">()&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">obj_saved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">traverse</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">parent_edge</span><span class="o">=</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{attr_name}</span><span class="s2">()&quot;</span><span class="p">),</span> <span class="n">level</span><span class="o">=</span><span class="n">level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="n">attr</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">traverse</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">parent_edge</span><span class="o">=</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">),</span> <span class="n">level</span><span class="o">=</span><span class="n">level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GraphBuilder.strip"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.GraphBuilder.strip">[docs]</a>    <span class="k">def</span> <span class="nf">strip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">with_methods</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">reverse</span><span class="p">(</span><span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">graph_stripped</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">node_from</span> <span class="ow">in</span> <span class="n">nx</span><span class="o">.</span><span class="n">topological_sort</span><span class="p">(</span><span class="n">graph</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_from</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)):</span>
+                <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_from</span><span class="p">][</span><span class="s1">&#39;color&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;green&#39;</span>
+                <span class="n">include_parents</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">include_parents</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_from</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;include&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">node_to</span><span class="p">,</span> <span class="n">edge_attr</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">adj</span><span class="p">[</span><span class="n">node_from</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">method_hit</span> <span class="o">=</span> <span class="n">with_methods</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">edge_attr</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">include_parents</span> <span class="ow">or</span> <span class="n">method_hit</span><span class="p">:</span>
+                    <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_to</span><span class="p">][</span><span class="s1">&#39;include&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="n">graph_stripped</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node_to</span><span class="p">,</span> <span class="o">**</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_to</span><span class="p">])</span>
+                    <span class="n">graph_stripped</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node_from</span><span class="p">,</span> <span class="o">**</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_from</span><span class="p">])</span>
+                    <span class="n">graph_stripped</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">node_to</span><span class="p">,</span> <span class="n">node_from</span><span class="p">,</span> <span class="o">**</span><span class="n">edge_attr</span><span class="p">)</span>
+        <span class="n">graph_stripped</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">)][</span><span class="s1">&#39;color&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;blue&#39;</span>
+        <span class="k">return</span> <span class="n">graph_stripped</span></div></div>
+
+
+<div class="viewcode-block" id="find"><a class="viewcode-back" href="../../reference/traverse.html#pinspect.traverse.find">[docs]</a><span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">ignore_key</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">ignore_class</span><span class="o">=</span><span class="p">(),</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">visualize</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Traverse the object `obj` and find methods and attributes that match the `key`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    obj : object</span>
+<span class="sd">        An object to inspect for `key`.</span>
+<span class="sd">    key : str</span>
+<span class="sd">        A key to look for.</span>
+<span class="sd">    ignore_key : str or list, optional</span>
+<span class="sd">        A string or a list of strings to ignore `obj` attributes and methods from being accessed and executed.</span>
+<span class="sd">        Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:</span>
+<span class="sd">            &#39;save&#39;, &#39;write&#39;, &#39;remove&#39;, &#39;delete&#39;, &#39;duplicate&#39;</span>
+<span class="sd">        For the total list of ignored key-words, see `NON_EXECUTABLE` in `utils.py`.</span>
+<span class="sd">    ignore_class : list, optional</span>
+<span class="sd">        A list of class types to ignore.</span>
+<span class="sd">        Apart from user-provided class types, all numpy functions will not be executed.</span>
+<span class="sd">    verbose : bool, optional</span>
+<span class="sd">        If set to True, prints found matches in console.</span>
+<span class="sd">        Default is True.</span>
+<span class="sd">    visualize : bool, optional</span>
+<span class="sd">        If set to True, renders a graph in a web browser, using `pyvis` package.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    graph : nx.DiGraph</span>
+<span class="sd">        Stripped graph with edges and nodes that match the `key`.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the `key` is a part of `ignore_key`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">ignore_key</span><span class="o">=</span><span class="n">ignore_key</span><span class="p">,</span> <span class="n">ignore_class</span><span class="o">=</span><span class="n">ignore_class</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">traverse</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">obj_saved</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="n">with_methods</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Stripped graph length: {len(builder.graph)} -&gt; {len(graph)}&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No match&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="n">to_string</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="nb">id</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">matches</span><span class="p">))</span>
+    <span class="c1"># to_pyvis(builder.graph, layout=False).show(&#39;full.html&#39;)</span>
+    <span class="k">if</span> <span class="n">visualize</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">network_pyvis</span> <span class="o">=</span> <span class="n">to_pyvis</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+        <span class="n">network_pyvis</span><span class="o">.</span><span class="n">show</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;</span><span class="si">{obj.__class__.__name__}</span><span class="s2">.html&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">graph</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Pretty inspect</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Modules</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Danylo Ulianych.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

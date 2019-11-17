@@ -1,0 +1,265 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>pinspect.utils &#8212; Pretty inspect 0.0.2 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pinspect.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
+<span class="kn">from</span> <span class="nn">pyvis.network</span> <span class="k">import</span> <span class="n">Network</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">StringIO</span> <span class="k">import</span> <span class="n">StringIO</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">io</span> <span class="k">import</span> <span class="n">StringIO</span>
+
+<span class="c1"># does not match to any symbol</span>
+<span class="n">REGEX_NEVER_MATCH</span> <span class="o">=</span> <span class="s1">&#39;(?!x)x&#39;</span>
+
+<span class="n">NON_EXECUTABLE</span> <span class="o">=</span> <span class="s2">&quot;save|write|remove|delete|duplicate&quot;</span>
+
+
+<div class="viewcode-block" id="getmembers"><a class="viewcode-back" href="../../reference/utils.html#pinspect.utils.getmembers">[docs]</a><span class="k">def</span> <span class="nf">getmembers</span><span class="p">(</span><span class="n">obj_class</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    obj_class : type</span>
+<span class="sd">        An object class.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    member_names : set</span>
+<span class="sd">        A set of method and attribute names of the `obj_class` type.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">member_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">func_name</span> <span class="k">for</span> <span class="n">func_name</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="n">obj_class</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="n">member_names</span></div>
+
+
+<div class="viewcode-block" id="get_module_root"><a class="viewcode-back" href="../../reference/utils.html#pinspect.utils.get_module_root">[docs]</a><span class="k">def</span> <span class="nf">get_module_root</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__module__</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="IgnoreFunc"><a class="viewcode-back" href="../../reference/utils.html#pinspect.utils.IgnoreFunc">[docs]</a><span class="k">class</span> <span class="nc">IgnoreFunc</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">obj_class</span><span class="o">=</span><span class="p">()):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : str or list, optional</span>
+<span class="sd">            A string or a list of strings to ignore `obj` attributes and methods from being accessed and executed.</span>
+<span class="sd">            Apart from user-provided strings, all methods that contain one of the following key-words will be ignored:</span>
+<span class="sd">            &#39;save&#39;, &#39;write&#39;, &#39;remove&#39;, &#39;delete&#39;, &#39;duplicate&#39;</span>
+<span class="sd">            For the total list of ignored key-words, see `NON_EXECUTABLE` in `utils.py`.</span>
+<span class="sd">        obj_class : list, optional</span>
+<span class="sd">            A list of class types to ignore.</span>
+<span class="sd">            Apart from user-provided class types, all numpy functions will not be executed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignore</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignored_functions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ignored_functions</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="n">getmembers</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ignored_functions</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">getmembers</span><span class="p">(</span><span class="n">np</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_class</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">set</span><span class="p">)):</span>
+            <span class="n">obj_class</span> <span class="o">=</span> <span class="p">[</span><span class="n">obj_class</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">class_type</span> <span class="ow">in</span> <span class="n">obj_class</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ignored_functions</span><span class="p">[</span><span class="n">class_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">getmembers</span><span class="p">(</span><span class="n">class_type</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">attribute_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check the `obj` for the attribute name `func_name`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        obj : object</span>
+<span class="sd">            Object to take the attribute from.</span>
+<span class="sd">        attribute_name : str</span>
+<span class="sd">            `obj` attribute name.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            Whether this attribute should be ignored or not.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">ignored_class</span><span class="p">,</span> <span class="n">ignored_functions</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignored_functions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">ignored_class</span><span class="p">)</span> <span class="ow">and</span> <span class="n">attribute_name</span> <span class="ow">in</span> <span class="n">ignored_functions</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">attribute_name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="to_pyvis"><a class="viewcode-back" href="../../reference/utils.html#pinspect.utils.to_pyvis">[docs]</a><span class="k">def</span> <span class="nf">to_pyvis</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">layout</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This method takes an exisitng Networkx graph and translates</span>
+<span class="sd">    it to a PyVis graph format that can be accepted by the VisJs</span>
+<span class="sd">    API in the Jinja2 template.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    graph : nx.DiGraph</span>
+<span class="sd">        NetworkX directed graph.</span>
+<span class="sd">    layout : bool</span>
+<span class="sd">        Use hierarchical layout if this is set.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    net : Network</span>
+<span class="sd">        PyVis Network</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span><span class="n">node_id</span><span class="p">):</span>
+        <span class="n">attr</span> <span class="o">=</span> <span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span>
+        <span class="n">net</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">attr</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">],</span> <span class="n">level</span><span class="o">=</span><span class="n">attr</span><span class="p">[</span><span class="s1">&#39;level&#39;</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="n">attr</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;color&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                     <span class="n">title</span><span class="o">=</span><span class="n">attr</span><span class="p">[</span><span class="s1">&#39;title&#39;</span><span class="p">])</span>
+
+    <span class="n">edges</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">edges</span><span class="o">.</span><span class="n">data</span><span class="p">()</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span>
+    <span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="p">(</span><span class="n">height</span><span class="o">=</span><span class="s2">&quot;960px&quot;</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="s2">&quot;1280px&quot;</span><span class="p">,</span> <span class="n">directed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">layout</span><span class="o">=</span><span class="n">layout</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">edge_attr</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+        <span class="n">add_node</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">add_node</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+        <span class="n">net</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="n">edge_attr</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="n">edge_attr</span><span class="p">[</span><span class="s1">&#39;color&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">net</span></div>
+
+
+<div class="viewcode-block" id="to_string"><a class="viewcode-back" href="../../reference/utils.html#pinspect.utils.to_string">[docs]</a><span class="k">def</span> <span class="nf">to_string</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Traverse the graph and yield its string representation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    graph : nx.DiGraph</span>
+<span class="sd">        Graph, obtained by `GraphBuilder`.</span>
+<span class="sd">    source : int</span>
+<span class="sd">        Source node id.</span>
+<span class="sd">    prefix : str</span>
+<span class="sd">        This prefix will be accumulated in a full call history during successive calls of `to_string()`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    generator</span>
+<span class="sd">        Generator of string traversal of the graph.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">adj</span><span class="p">[</span><span class="n">source</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{prefix}</span><span class="s2"> -&gt; &#39;</span><span class="si">{graph.nodes[source][&#39;label&#39;]}</span><span class="s2">&#39;&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">adj</span><span class="p">,</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">adj</span><span class="p">[</span><span class="n">source</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">yield from</span> <span class="n">to_string</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">adj</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;</span><span class="si">{prefix}</span><span class="s2">.</span><span class="si">{attr[&#39;label&#39;]}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="check_edge"><a class="viewcode-back" href="../../reference/utils.html#pinspect.utils.check_edge">[docs]</a><span class="k">def</span> <span class="nf">check_edge</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">edge_label</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    graph : nx.DiGraph</span>
+<span class="sd">        A graph.</span>
+<span class="sd">    edge_label : str</span>
+<span class="sd">        Edge label.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Counts how many edges have the property `label` that matches `edge_label`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">filtered</span> <span class="o">=</span> <span class="p">[</span><span class="n">triple</span> <span class="k">for</span> <span class="n">triple</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">edges</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">triple</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">edge_label</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">filtered</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;</span><span class="si">{graph.nodes[v][&#39;label&#39;]}</span><span class="s2">.</span><span class="si">{label}</span><span class="s2"> -&gt; </span><span class="si">{graph.nodes[u][&#39;label&#39;]}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Pretty inspect</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Modules</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Danylo Ulianych.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

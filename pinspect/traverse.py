@@ -1,3 +1,8 @@
+"""
+The main function is `find()`.
+"""
+
+
 import contextlib
 import inspect
 import logging
@@ -230,6 +235,8 @@ class GraphBuilder:
 
 def find(obj, key, ignore_key='', ignore_class=(), verbose=True, visualize=True):
     """
+    Traverse the object `obj` and find methods and attributes that match the `key`.
+
     Parameters
     ----------
     obj : object
