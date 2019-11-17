@@ -1,5 +1,10 @@
 # Pretty inspect
 
+[![Build Status](https://travis-ci.org/dizcza/pinspect.svg?branch=master)](https://travis-ci.org/dizcza/pinspect)
+[![Coverage Status](https://coveralls.io/repos/github/dizcza/pinspect/badge.svg?branch=master)](https://coveralls.io/github/dizcza/pinspect?branch=master)
+[![Documentation Status](https://readthedocs.org/projects/pinspect/badge/?version=latest)](https://pinspect.readthedocs.io/en/latest/?badge=latest)
+
+
 Inspired by the complexity of [Neo](https://github.com/NeuralEnsemble/python-neo).
 
 When browsing/inspecting an object, you want to collect all methods and attributes that match the key.
