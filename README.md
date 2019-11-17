@@ -6,7 +6,7 @@ When browsing/inspecting an object, you want to collect all methods and attribut
 
 ### Example
 
-Browsing the direct methods in `neo.io.BlackrockIO` and looking for the ways of extracting `epoch`s, you found `read_epoch()` method. But calling this method produces `AssertionError`. You need to go deeper.
+Browsing the documentation of `neo.io.BlackrockIO` and looking for the ways of extracting `Epoch`s, you found `read_epoch()` method. But calling this method raises `AssertionError`. You need to go deeper.
 1. Run `pip install pinspect neo`
 2. Download BlackRock [sampledata.zip](http://www.blackrockmicro.com/wp-content/software/sampledata.zip)
 
@@ -28,10 +28,27 @@ graph = find(session, 'epoch', verbose=True)
 Output:
 
 ```
+BlackrockIO.rescale_epoch_duration() -> 'TypeError'
+BlackrockIO.read_epoch() -> 'AssertionError'
+BlackrockIO._rescale_epoch_duration() -> 'TypeError'
 BlackrockIO.read()[0].segments[0].epochs -> 'list of size 0'
-BlackrockIO.read()[0].segments[0].spiketrains[0].sampling_period -> 'Epoch'
 BlackrockIO.read()[0].segments[0].events[0].to_epoch() -> 'Epoch'
 ```
+
+The last two lines are candidates to explore manually.
+
+### Graph visualization
+
+You can pass `visualize=True` and enjoy the beautiful `networkx` with `pyvis` interacting graph rendering.
+Hover over the nodes (objects) and edges (methods and attributes) to explore the graph in details and inspect how a particular object has been generated.
+
+![](screenshots/neo_BlackRockIO_Epoch.png)
+
+#### Unfiltered graph
+
+Below is the full unfiltered graph of `neo.BlackRockIO` of all possible method and attribute calls. Can you find the green dot?
+
+![](screenshots/neo_BlackRockIO.png)
 
 ### Requirements
 

@@ -1,7 +1,9 @@
 import inspect
+import logging
 import re
-from pyvis.network import Network
+
 import networkx as nx
+from pyvis.network import Network
 
 try:
     from StringIO import StringIO
@@ -61,7 +63,7 @@ class IgnoreFunc:
         return self.ignore.search(func_name)
 
 
-def to_pyvis(graph):
+def to_pyvis(graph, layout=True):
     """
     This method takes an exisitng Networkx graph and translates
     it to a PyVis graph format that can be accepted by the VisJs
@@ -71,21 +73,26 @@ def to_pyvis(graph):
     ----------
     graph : nx.DiGraph
         NetworkX directed graph.
+    layout : bool
+        Use hierarchical layout if this is set.
 
     Returns
     -------
     net : Network
         PyVis Network
     """
-    edges = graph.edges(data='label')
+    def add_node(node_id):
+        attr = nodes[node_id]
+        net.add_node(node_id, label=attr['label'], level=attr['level'], color=attr.get('color', None),
+                     title=attr['title'])
+
+    edges = graph.edges.data()
     nodes = graph.nodes
-    net = Network(height="960px", width="1280px", directed=True, layout=True)
-    for (v, u, label) in edges:
-        v_level = nodes[v]['level']
-        u_level = nodes[u]['level']
-        net.add_node(v, label=nodes[v]['label'], level=v_level, color='red' if v_level == 0 else None, title=nodes[v]['title'])
-        net.add_node(u, label=nodes[u]['label'], level=u_level, title=nodes[u]['title'])
-        net.add_edge(v, u, title=label, color='magenta' if u_level == v_level - 1 else 'blue')
+    net = Network(height="960px", width="1280px", directed=True, layout=layout)
+    for v, u, edge_attr in edges:
+        add_node(v)
+        add_node(u)
+        net.add_edge(v, u, title=edge_attr['label'], color=edge_attr['color'])
     return net
 
 
@@ -112,3 +119,10 @@ def to_string(graph, source, prefix=''):
     else:
         for adj, attr in graph.adj[source].items():
             yield from to_string(graph, source=adj, prefix=f"{prefix}.{attr['label']}")
+
+
+def check_edge(graph, edge_label):
+    filtered = [triple for triple in graph.edges.data('label') if triple[2].startswith(edge_label)]
+    for v, u, label in filtered:
+        logging.info(f"{graph.nodes[v]['label']}.{label} -> {graph.nodes[u]['label']}")
+    return len(filtered)

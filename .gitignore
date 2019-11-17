@@ -1,6 +1,6 @@
 .idea/
 ignored/
 dist/
+**/logs/
 *.egg-info/
 *.pyc
-
