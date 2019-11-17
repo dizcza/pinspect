@@ -8,25 +8,15 @@ try:
 except ImportError:
     from io import StringIO
 
-
-try:
-    import numpy as np
-    HAS_NUMPY = True
-except ImportError:
-    HAS_NUMPY = False
-
 # does not match to any symbol
 REGEX_NEVER_MATCH = '(?!x)x'
 
-NON_EXECUTABLE = "save|write|remove|delete"
+NON_EXECUTABLE = "save|write|remove|delete|duplicate"
 
 
-def collect_ignored_functions():
-    ignore_functions = set()
-    if HAS_NUMPY:
-        for func_name, func in inspect.getmembers(np.ndarray):
-            ignore_functions.add(func_name)
-    return ignore_functions
+def collect_ignored_functions(obj_class):
+    function_names = {func_name for func_name, func in inspect.getmembers(obj_class)}
+    return function_names
 
 
 def get_module_root(obj):
@@ -34,20 +24,48 @@ def get_module_root(obj):
 
 
 class IgnoreFunc:
-    def __init__(self, ignore=''):
-        self.ignore = re.compile(ignore, flags=re.IGNORECASE)
-        self.ignored_functions = collect_ignored_functions()
+    def __init__(self, key='', obj_class=()):
+        if key == '':
+            key = REGEX_NEVER_MATCH
+        self.ignore = re.compile(key, flags=re.IGNORECASE)
+        self.ignored_functions = dict()
+        try:
+            import numpy as np
+            self.ignored_functions[np.ndarray] = collect_ignored_functions(np.ndarray)
+            self.ignored_functions[np.ndarray].update(collect_ignored_functions(np))
+        except ImportError:
+            pass
+        if not isinstance(obj_class, (list, tuple, set)):
+            obj_class = [obj_class]
+        for class_type in obj_class:
+            self.ignored_functions[class_type] = collect_ignored_functions(class_type)
 
     def __call__(self, obj, func_name):
-        is_numpy = HAS_NUMPY and isinstance(obj, np.ndarray) and func_name in self.ignored_functions
-        return self.ignore.search(func_name) or is_numpy
+        """
+        Check the `obj` for the attribute name `func_name`.
+
+        Parameters
+        ----------
+        obj : object
+            Object to take the attribute from.
+        func_name : str
+            `obj`'s attribute name.
+        Returns
+        -------
+        bool
+            Whether this attribute should be ignored or not.
+        """
+        for ignored_class, ignored_functions in self.ignored_functions.items():
+            if isinstance(obj, ignored_class) and func_name in ignored_functions:
+                return True
+        return self.ignore.search(func_name)
 
 
 def to_pyvis(graph):
     """
     This method takes an exisitng Networkx graph and translates
     it to a PyVis graph format that can be accepted by the VisJs
-    API in the Jinja2 template. This operation is done in place.
+    API in the Jinja2 template.
 
     Parameters
     ----------
@@ -72,6 +90,23 @@ def to_pyvis(graph):
 
 
 def to_string(graph, source, prefix=''):
+    """
+    Traverse the graph and yield its string representation.
+
+    Parameters
+    ----------
+    graph : nx.DiGraph
+        Graph, obtained by `GraphBuilder`.
+    source : int
+        Source node id.
+    prefix : str
+        This prefix will be accumulated in a full call history during successive calls of `to_string()`.
+
+    Returns
+    -------
+    generator
+        Generator of string traversal of the graph.
+    """
     if len(graph.adj[source]) == 0:
         yield f"{prefix} -> '{graph.nodes[source]['label']}'"
     else:
