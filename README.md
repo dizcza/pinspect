@@ -44,7 +44,7 @@ The last two lines are candidates to explore manually.
 
 ### Graph visualization
 
-You can pass `visualize=True` and enjoy the beautiful `networkx` with `pyvis` interacting graph rendering.
+You can pass `visualize=True` and enjoy the beautiful `networkx` with `pyvis` interactive graph rendering.
 Hover over the nodes (objects) and edges (methods and attributes) to explore the graph in details and inspect how a particular object has been generated.
 
 ![](screenshots/neo_BlackRockIO_Epoch.png)
