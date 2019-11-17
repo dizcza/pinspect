@@ -158,7 +158,8 @@ def check_edge(graph, edge_label):
         Counts how many edges have the property `label` that matches `edge_label`.
 
     """
-    filtered = [triple for triple in graph.edges.data('label') if triple[2].startswith(edge_label)]
+    edge_label = re.compile(edge_label)
+    filtered = [triple for triple in graph.edges.data('label') if edge_label.search(triple[2])]
     for v, u, label in filtered:
         logging.info(f"{graph.nodes[v]['label']}.{label} -> {graph.nodes[u]['label']}")
     return len(filtered)

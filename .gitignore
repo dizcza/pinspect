@@ -4,3 +4,4 @@ dist/
 **/logs/
 *.egg-info/
 *.pyc
+.coverage

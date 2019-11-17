@@ -1,0 +1,21 @@
+dist: xenial
+language: python
+sudo: false
+
+
+matrix:
+  include:
+    - name: "pip 3.6"
+      python: 3.6
+
+
+install:
+  - pip -V
+  - pip install -r requirements.txt;
+  - pip install coverage coveralls nose
+  - pip list
+  - python --version
+
+script:
+  - nosetests --with-coverage --cover-package=pinspect
+  - coveralls
